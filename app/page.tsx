@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Send, Users, MessageCircle, Wifi, WifiOff } from "lucide-react"
+import DebugConnection from "./debug-connection"
 
 interface Message {
   id: string
@@ -22,7 +23,7 @@ interface User {
   username: string
 }
 
-export default function ChatRoom() {
+export default function Home() {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -31,8 +32,10 @@ export default function ChatRoom() {
   const [users, setUsers] = useState<User[]>([])
   const [hasJoined, setHasJoined] = useState(false)
   const [connectionError, setConnectionError] = useState("")
+  const [isConnecting, setIsConnecting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [showDebug, setShowDebug] = useState(true)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -42,89 +45,105 @@ export default function ChatRoom() {
     scrollToBottom()
   }, [messages])
 
-  useEffect(() => {
-    // Initialize socket connection
-    const initializeSocket = async () => {
-      try {
-        // Then connect to it
-        const newSocket = io("https://hackweek-chat2.onrender.com", {
-          transports: ["websocket", "polling"],
-        })
+  const connectToServer = () => {
+    setIsConnecting(true)
+    setConnectionError("")
 
-        newSocket.on("connect", () => {
-          console.log("Connected to server:", newSocket.id)
-          setIsConnected(true)
-          setConnectionError("")
-        })
-
-        newSocket.on("disconnect", (reason) => {
-          console.log("Disconnected from server:", reason)
-          setIsConnected(false)
-          if (reason === "io server disconnect") {
-            // Server disconnected, try to reconnect
-            newSocket.connect()
-          }
-        })
-
-        newSocket.on("connect_error", (error) => {
-          console.error("Connection error:", error)
-          setConnectionError("Failed to connect to server")
-          setIsConnected(false)
-        })
-
-        newSocket.on("message", (message: Message) => {
-          console.log("Received message:", message)
-          setMessages((prev) => [...prev, { ...message, timestamp: new Date(message.timestamp) }])
-        })
-
-        newSocket.on("messageHistory", (history: Message[]) => {
-          console.log("Received message history:", history)
-          setMessages(history.map((msg) => ({ ...msg, timestamp: new Date(msg.timestamp) })))
-        })
-
-        newSocket.on("userJoined", (data: { user: User; users: User[] }) => {
-          console.log("User joined:", data)
-          setUsers(data.users)
-          // Add system message for user joining (only if it's not the current user)
-          if (data.user.username !== username) {
-            const systemMessage: Message = {
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-              username: "System",
-              text: `${data.user.username} joined the chat`,
-              timestamp: new Date(),
-              userId: "system",
-            }
-            setMessages((prev) => [...prev, systemMessage])
-          }
-        })
-
-        newSocket.on("userLeft", (data: { user: User; users: User[] }) => {
-          console.log("User left:", data)
-          setUsers(data.users)
-          // Add system message for user leaving
-          const systemMessage: Message = {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            username: "System",
-            text: `${data.user.username} left the chat`,
-            timestamp: new Date(),
-            userId: "system",
-          }
-          setMessages((prev) => [...prev, systemMessage])
-        })
-
-        newSocket.on("users", (userList: User[]) => {
-          console.log("Updated user list:", userList)
-          setUsers(userList)
-        })
-
-        setSocket(newSocket)
-      } catch (error) {
-        console.error("Failed to initialize socket:", error)
-        setConnectionError("Failed to initialize connection")
-      }
+    // Disconnect existing socket if any
+    if (socket) {
+      socket.disconnect()
     }
 
-    initializeSocket()
+    console.log("Attempting to connect to:", "https://hackweek-chat2.onrender.com")
+
+    const newSocket = io("https://hackweek-chat2.onrender.com", {
+      transports: ["websocket", "polling"],
+      timeout: 20000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    })
+
+    newSocket.on("connect", () => {
+      console.log("✅ Connected to server:", newSocket.id)
+      setIsConnected(true)
+      setConnectionError("")
+      setIsConnecting(false)
+    })
+
+    newSocket.on("disconnect", (reason) => {
+      console.log("❌ Disconnected from server:", reason)
+      setIsConnected(false)
+      setIsConnecting(false)
+    })
+
+    newSocket.on("connect_error", (error) => {
+      console.error("❌ Connection error:", error)
+      setConnectionError(`Connection failed: ${error.message}`)
+      setIsConnected(false)
+      setIsConnecting(false)
+    })
+
+    newSocket.on("reconnect", (attemptNumber) => {
+      console.log("🔄 Reconnected after", attemptNumber, "attempts")
+      setIsConnected(true)
+      setConnectionError("")
+    })
+
+    newSocket.on("reconnect_error", (error) => {
+      console.error("🔄 Reconnection failed:", error)
+      setConnectionError("Reconnection failed")
+    })
+
+    newSocket.on("message", (message: Message) => {
+      console.log("📨 Received message:", message)
+      setMessages((prev) => [...prev, { ...message, timestamp: new Date(message.timestamp) }])
+    })
+
+    newSocket.on("messageHistory", (history: Message[]) => {
+      console.log("📚 Received message history:", history)
+      setMessages(history.map((msg) => ({ ...msg, timestamp: new Date(msg.timestamp) })))
+    })
+
+    newSocket.on("userJoined", (data: { user: User; users: User[] }) => {
+      console.log("👤 User joined:", data)
+      setUsers(data.users)
+      if (data.user.username !== username) {
+        const systemMessage: Message = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          username: "System",
+          text: `${data.user.username} joined the chat`,
+          timestamp: new Date(),
+          userId: "system",
+        }
+        setMessages((prev) => [...prev, systemMessage])
+      }
+    })
+
+    newSocket.on("userLeft", (data: { user: User; users: User[] }) => {
+      console.log("👋 User left:", data)
+      setUsers(data.users)
+      const systemMessage: Message = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        username: "System",
+        text: `${data.user.username} left the chat`,
+        timestamp: new Date(),
+        userId: "system",
+      }
+      setMessages((prev) => [...prev, systemMessage])
+    })
+
+    newSocket.on("users", (userList: User[]) => {
+      console.log("👥 Updated user list:", userList)
+      setUsers(userList)
+    })
+
+    setSocket(newSocket)
+  }
+
+  useEffect(() => {
+    connectToServer()
 
     return () => {
       if (socket) {
@@ -135,7 +154,7 @@ export default function ChatRoom() {
 
   const joinChat = () => {
     if (username.trim() && socket && isConnected) {
-      console.log("Joining chat as:", username.trim())
+      console.log("🚪 Joining chat as:", username.trim())
       socket.emit("join", username.trim())
       setHasJoined(true)
       inputRef.current?.focus()
@@ -144,7 +163,7 @@ export default function ChatRoom() {
 
   const sendMessage = () => {
     if (newMessage.trim() && socket && hasJoined && isConnected) {
-      console.log("Sending message:", newMessage.trim())
+      console.log("📤 Sending message:", newMessage.trim())
       socket.emit("message", newMessage.trim())
       setNewMessage("")
       inputRef.current?.focus()
@@ -168,45 +187,15 @@ export default function ChatRoom() {
     })
   }
 
-  if (!hasJoined) {
+  if (showDebug) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center gap-2">
-              <MessageCircle className="h-6 w-6" />
-              Join Chat Room
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Enter your username to start chatting</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Input
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyPress={handleKeyPress}
-                maxLength={20}
-              />
-            </div>
-            <Button onClick={joinChat} className="w-full" disabled={!username.trim() || !isConnected}>
-              {isConnected ? "Join Chat" : "Connecting..."}
-            </Button>
-            <div className="flex items-center justify-center gap-2 text-sm">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
-              {isConnected ? (
-                <span className="text-green-600">Connected</span>
-              ) : (
-                <span className="text-red-600">{connectionError || "Connecting..."}</span>
-              )}
-            </div>
-            {connectionError && (
-              <div className="text-xs text-center text-red-600 bg-red-50 p-2 rounded">
-                {connectionError}. Make sure the Socket.IO server is running.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div>
+        <DebugConnection />
+        <div className="fixed bottom-4 right-4">
+          <Button onClick={() => setShowDebug(false)} variant="outline">
+            Skip to Chat
+          </Button>
+        </div>
       </div>
     )
   }
@@ -336,11 +325,16 @@ export default function ChatRoom() {
 
             {!isConnected && (
               <div className="text-xs text-center text-red-600 mt-2 bg-red-50 p-2 rounded">
-                Connection lost. Attempting to reconnect...
+                Connection lost. Check server status or try refreshing.
               </div>
             )}
           </CardContent>
         </Card>
+      </div>
+      <div className="fixed bottom-4 right-4">
+        <Button onClick={() => setShowDebug(true)} variant="outline" size="sm">
+          Debug Connection
+        </Button>
       </div>
     </div>
   )
