@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
-import { Send, Users, MessageCircle, Wifi, WifiOff } from "lucide-react"
+import { Send, Users, MessageCircle, Wifi, WifiOff, RefreshCw } from "lucide-react"
 import DebugConnection from "./debug-connection"
 
 interface Message {
@@ -35,7 +35,7 @@ export default function Home() {
   const [isConnecting, setIsConnecting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [showDebug, setShowDebug] = useState(true)
+  const [showDebug, setShowDebug] = useState(false)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -196,6 +196,88 @@ export default function Home() {
             Skip to Chat
           </Button>
         </div>
+      </div>
+    )
+  }
+
+  if (!hasJoined) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2">
+              <MessageCircle className="h-6 w-6" />
+              Join Chat Room
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Enter your username to start chatting</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyPress={handleKeyPress}
+                maxLength={20}
+                autoFocus
+              />
+            </div>
+            <Button onClick={joinChat} className="w-full" disabled={!username.trim() || !isConnected}>
+              {isConnecting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Connecting...
+                </>
+              ) : isConnected ? (
+                "Join Chat"
+              ) : (
+                "Connection Failed"
+              )}
+            </Button>
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isConnecting ? "bg-yellow-500" : isConnected ? "bg-green-500" : "bg-red-500"
+                }`}
+              />
+              {isConnecting ? (
+                <span className="text-yellow-600">Connecting...</span>
+              ) : isConnected ? (
+                <span className="text-green-600">Connected to server</span>
+              ) : (
+                <span className="text-red-600">Disconnected</span>
+              )}
+            </div>
+            {connectionError && (
+              <div className="text-xs text-center text-red-600 bg-red-50 p-3 rounded border border-red-200">
+                <p className="font-medium">Connection Error:</p>
+                <p>{connectionError}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={connectToServer}
+                  className="mt-2 text-xs"
+                  disabled={isConnecting}
+                >
+                  {isConnecting ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Retry Connection
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            <div className="text-xs text-center text-muted-foreground bg-green-50 p-2 rounded">
+              🌐 Ready for multi-user chat!
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
