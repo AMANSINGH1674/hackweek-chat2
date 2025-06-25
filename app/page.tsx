@@ -46,12 +46,8 @@ export default function ChatRoom() {
     // Initialize socket connection
     const initializeSocket = async () => {
       try {
-        // First, initialize the Socket.IO server
-        await fetch("/api/socket")
-
         // Then connect to it
-        const newSocket = io({
-          path: "/api/socket",
+        const newSocket = io("https://hackweek-chat2.onrender.com", {
           transports: ["websocket", "polling"],
         })
 
