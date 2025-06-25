@@ -12,9 +12,9 @@ Any changes you make to your deployed app will be automatically pushed to this r
 
 ## Deployment
 
-Your project is live at:
+The project is live at:
+https://v0-socket-io-chat-app-amans-projects-171aec8b.vercel.app/
 
-**[https://vercel.com/amans-projects-171aec8b/v0-socket-io-chat-app](https://vercel.com/amans-projects-171aec8b/v0-socket-io-chat-app)**
 
 ## Build your app
 
